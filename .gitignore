@@ -1,0 +1,12 @@
+# Ignore dataset folder
+dataset/
+
+# Ignore zip files
+*.zip
+
+# Ignore Python cache files and directories
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
