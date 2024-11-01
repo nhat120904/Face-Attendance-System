@@ -43,10 +43,9 @@ def train_model(model, train_loader, num_epochs=10, learning_rate=0.001):
             optimizer.step()
 
             running_loss += loss.item()
+            writer.add_scalar('Loss/train', loss.item(), epoch+1)
 
         print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {running_loss/len(train_loader):.4f}")
-        writer.add_scalar('Loss/train', running_loss/len(train_loader), epoch+1)
-        writer.flush()
     
     writer.close()
     return model
@@ -125,10 +124,10 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=4)
     test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=4)
 
-    # Initialize the model
+    # Initialize model
     model = FaceEmbeddingCNN().to(device)
 
-    # Train the model
+    # Train model
     model = train_model(model, train_loader, num_epochs=10)
 
     # Find the best threshold using validation set

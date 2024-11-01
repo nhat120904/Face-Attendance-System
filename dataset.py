@@ -59,35 +59,61 @@ class FaceDataset(Dataset):
         else:
             return len(self.pairs)
 
+    # def __getitem__(self, idx):
+    #     if self.split == 'train':
+    #         anchor_path = self.image_paths[idx]
+    #         anchor_class = os.path.basename(os.path.dirname(anchor_path))
+            
+    #         # Select positive (same class) and negative (different class) samples
+    #         positive_path = random.choice([p for p in self.image_paths if os.path.basename(os.path.dirname(p)) == anchor_class and p != anchor_path])
+    #         negative_path = random.choice([p for p in self.image_paths if os.path.basename(os.path.dirname(p)) != anchor_class])
+            
+    #         anchor = Image.open(anchor_path).convert('RGB')
+    #         positive = Image.open(positive_path).convert('RGB')
+    #         negative = Image.open(negative_path).convert('RGB')
+            
+    #         if self.transform:
+    #             anchor = self.transform(anchor)
+    #             positive = self.transform(positive)
+    #             negative = self.transform(negative)
+            
+    #         return anchor, positive, negative
+    #     else:
+    #         img1_path, img2_path, label = self.pairs[idx]
+    #         img1 = Image.open(img1_path).convert('RGB')
+    #         img2 = Image.open(img2_path).convert('RGB')
+            
+    #         if self.transform:
+    #             img1 = self.transform(img1)
+    #             img2 = self.transform(img2)
+            
+    #         return img1, img2, torch.tensor(label, dtype=torch.float32)
+    
     def __getitem__(self, idx):
         if self.split == 'train':
-            anchor_path = self.image_paths[idx]
-            anchor_class = os.path.basename(os.path.dirname(anchor_path))
-            
-            # Select positive (same class) and negative (different class) samples
-            positive_path = random.choice([p for p in self.image_paths if os.path.basename(os.path.dirname(p)) == anchor_class and p != anchor_path])
-            negative_path = random.choice([p for p in self.image_paths if os.path.basename(os.path.dirname(p)) != anchor_class])
-            
-            anchor = Image.open(anchor_path).convert('RGB')
-            positive = Image.open(positive_path).convert('RGB')
-            negative = Image.open(negative_path).convert('RGB')
-            
+            img_path = self.image_paths[idx]
+            img = Image.open(img_path).convert('RGB')
+            label = self.classes.index(os.path.basename(os.path.dirname(img_path)))  # Get the class index based on folder name
+
             if self.transform:
-                anchor = self.transform(anchor)
-                positive = self.transform(positive)
-                negative = self.transform(negative)
-            
-            return anchor, positive, negative
+                img = self.transform(img)
+
+            return img, torch.tensor(label, dtype=torch.long)
         else:
+            # For 'val' and 'test' splits, you can keep the pairs logic for verification
             img1_path, img2_path, label = self.pairs[idx]
             img1 = Image.open(img1_path).convert('RGB')
             img2 = Image.open(img2_path).convert('RGB')
+            
+            if self.return_original:
+                return img1, img2, label
             
             if self.transform:
                 img1 = self.transform(img1)
                 img2 = self.transform(img2)
             
             return img1, img2, torch.tensor(label, dtype=torch.float32)
+
 
 def visualize_pairs(dataset, num_pairs=5):
     fig, axes = plt.subplots(num_pairs, 2, figsize=(10, 4*num_pairs))

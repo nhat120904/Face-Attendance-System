@@ -10,3 +10,24 @@ __pycache__/
 *.pyo
 *.pyd
 
+*.pt
+*.pth
+*.onnx
+*.prototxt
+
+Face-AntiSpoofing/
+
+runs/
+
+*.docx
+
+**/output/
+
+# Ignore video and image files
+*.mp4
+*.MOV
+*.avi
+*.jpg
+*.jpeg
+*.png
+*.gif
