@@ -12,6 +12,7 @@ from torchvision import transforms
 from PIL import Image
 from collections import defaultdict, deque
 import random
+from FaceAntiSpoofing import AntiSpoof
 from scipy.spatial.distance import cosine
 import logging
 
@@ -77,7 +78,7 @@ def process_frame(frame, model, tracker, class_names, colors):
     return tracks, detections
 
 # Draw bounding boxes and perform face recognition
-def draw_tracks(frame, tracks, detections, class_names, colors, class_counters, feature_database, identity_database, det_model, rec_model):
+def draw_tracks(frame, tracks, detections, class_names, colors, class_counters, feature_database, identity_database, det_model, rec_model, anti_spoof):
     global perform_recognition
     for track in tracks:
         if not track.is_confirmed():
@@ -115,7 +116,7 @@ def draw_tracks(frame, tracks, detections, class_names, colors, class_counters, 
         if perform_recognition and identity == "Unknown":
             crop_img = frame[y1:y2, x1:x2]
             if crop_img.size > 0:
-                identity = recognize_from_image(crop_img, det_model, rec_model)
+                identity, spoof = recognize_from_image(crop_img, det_model, rec_model, anti_spoof)
                 identity_database[class_specific_id] = identity
                 
             perform_recognition = False
@@ -123,7 +124,7 @@ def draw_tracks(frame, tracks, detections, class_names, colors, class_counters, 
         feature_database[class_specific_id].append(feature)
 
         # Draw bounding box and identity
-        text = f"Hello {identity}"
+        text = f"Hello {identity} REAL"
         color = tuple(map(int, colors[class_id]))
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         cv2.putText(frame, text, (x1 + 5, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
@@ -141,7 +142,21 @@ def main():
     else:
         video_input = st.sidebar.file_uploader("Upload a Video File", type=["mp4", "avi", "mkv"])
 
-    perform_recognition_button = st.sidebar.button("Trigger Face Recognition")
+    option = st.sidebar.selectbox(
+        "Choose Face Recognititon model",
+        ("ArcFace", "Metric Learing", "FaceNet", "MobileFaceNet", "InsightFace"),
+    )
+
+    st.sidebar.write("You selected:", option)
+
+    # Detection and identity thresholds
+    det_thresh = st.sidebar.slider("Detection Threshold", 0.0, 1.0, 0.02, 0.01)
+    ident_thresh = st.sidebar.slider("Identity Threshold", 0.0, 1.0, 0.25572845, 0.01)
+    nms_thresh = st.sidebar.slider("NMS Threshold", 0.0, 1.0, 0.4, 0.01)
+
+    perform_recognition_button = st.sidebar.button("Face Attendance Check")
+    
+    
 
     # Update global perform_recognition flag
     global perform_recognition
@@ -185,10 +200,12 @@ def main():
     }
     WEIGHT_REC_PATH, MODEL_REC_PATH = rec_model['resnet100']
 
-    # initialize
+    # Loading models
+    st.text("Initializing models, please wait...")
     det_model = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=ailia.get_gpu_environment_id())
     rec_model = ailia.Net(MODEL_REC_PATH, WEIGHT_REC_PATH, env_id=ailia.get_gpu_environment_id())
-
+    anti_spoof = AntiSpoof('./weights/AntiSpoofing_print-replay_1.5_128.onnx')
+    
     # Open video capture
     if video_input == 0:
         cap = cv2.VideoCapture(0)
@@ -204,7 +221,7 @@ def main():
             break
 
         tracks, detections = process_frame(frame, model, tracker, class_names, colors)
-        frame = draw_tracks(frame, tracks, detections, class_names, colors, class_counters, feature_database, identity_database, det_model, rec_model)
+        frame = draw_tracks(frame, tracks, detections, class_names, colors, class_counters, feature_database, identity_database, det_model, rec_model, anti_spoof)
         # Convert to RGB for display in Streamlit
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         stframe.image(frame, channels="RGB")

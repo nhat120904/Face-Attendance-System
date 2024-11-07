@@ -13,6 +13,7 @@ import ailia
 # import original modules
 sys.path.append('./util')
 sys.path.append('./insightface')
+sys.path.append('./Face-AntiSpoofing')
 from arg_utils import get_base_parser, update_parser, get_savepath  # noqa: E402
 from model_utils import check_and_download_models  # noqa: E402
 from detector_utils import load_image  # noqa: E402
@@ -58,7 +59,7 @@ IMAGE_SIZE = 512
 Face = namedtuple('Face', [
     'category', 'prob', 'cosin_metric',
     'landmark', 'x', 'y', 'w', 'h',
-    'embedding'
+    'embedding', 'spoof', 'label'
 ])
 
 
@@ -192,11 +193,11 @@ def load_identities(rec_model):
 # ======================
 # Main functions
 # ======================
-def predict(img, det_model, rec_model):
+def predict(img, det_model, rec_model, anti_spoof):
     # initial preprocesses
     im_height, im_width, _ = img.shape
     _img = preprocess(img)
-
+    print("original image shape: ", _img.shape)
     # feedforward
     output = det_model.predict({'img': _img})
 
@@ -212,15 +213,25 @@ def predict(img, det_model, rec_model):
 
         _img = face_align_norm_crop(img, landmark=landmark)
         _img = cv2.cvtColor(_img, cv2.COLOR_BGR2RGB)
+        _img_spoof = cv2.resize(_img, (256, 256))
+        
+        # check anti-spoofing
+        print("check shape: ", _img_spoof.shape)
+        isSpoof = anti_spoof([_img_spoof])[0]
+        isSpoof = isSpoof[0][0]
+        label = np.argmax(isSpoof)
+        
+        # recognize people in image
         _img = np.transpose(_img, (2, 0, 1))
         _img = np.expand_dims(_img, axis=0)
         _img = _img.astype(np.float32)
         output = rec_model.predict({'data': _img})[0]
-
+        
         embedding = output[0]
         embedding_norm = norm(embedding)
         normed_embedding = embedding / embedding_norm
-
+        
+        
         # output = ga_model.predict({'data': _img})[0]
 
         # g = output[0, 0:2]
@@ -253,13 +264,15 @@ def predict(img, det_model, rec_model):
             w=(bbox[2] - bbox[0]) / im_width,
             h=(bbox[3] - bbox[1]) / im_height,
             embedding=normed_embedding,
+            spoof = isSpoof,
+            label=label
         )
         faces.append(face)
 
     return faces
 
 
-def recognize_from_image(img, det_model, rec_model):
+def recognize_from_image(img, det_model, rec_model, anti_spoof):
     # prepare input data
     # img = load_image(filename)
     logger.debug(f'input image shape: {img.shape}')
@@ -279,26 +292,37 @@ def recognize_from_image(img, det_model, rec_model):
             end = int(round(time.time() * 1000))
             logger.info(f'\tailia processing time {end - start} ms')
     else:
-        faces = predict(img, det_model, rec_model)
+        faces = predict(img, det_model, rec_model, anti_spoof)
 
     faces = face_identification(faces, ident_feats)
 
     # Find the face with the highest probability
     if faces:
         highest_prob_face = max(faces, key=lambda face: face.prob)
+        highest_prob_spoof = highest_prob_face.label
+        spoof_score = highest_prob_face.spoof
+        print("spoof score = ", spoof_score)
+        if highest_prob_spoof == 0:
+            if spoof_score > 0.4:
+                spoof_result = True
+            else:
+                spoof_result = False
+        else:
+            spoof_result = False
         print("hight face prob = ", highest_prob_face.prob)
         if highest_prob_face.prob > 0.7:
             # Get the name for this face
             if highest_prob_face.category is not None:
                 highest_prob_name = ident_names[highest_prob_face.category]
+                
                 print("category: ", highest_prob_face.category)
             else:
                 highest_prob_name = "Unknown"
         else:
             highest_prob_name = "Unknown"
-        return highest_prob_name
+        return highest_prob_name, spoof_result
     else:
-        return None
+        return None, None
     # plot and save result
     # res_img = draw_detection(img, faces, ident_names)
     # savepath = get_savepath(args.savepath, filename)
@@ -318,12 +342,6 @@ def recognize_from_image(img, det_model, rec_model):
     #     print(f'- size: ({face.w}, {face.h})')
         # print(f'- age: {face.age}')
         # print(f'- gender: {face.gender}')
-    
-    
-    
-        
-    
-
 
 def recognize_from_video(video, det_model, rec_model):
     capture = webcamera_utils.get_capture(video)

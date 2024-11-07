@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+print(torch.hub.get_dir())
 
 class FaceEmbeddingCNN(nn.Module):
     def __init__(self, embedding_dim=128):
@@ -20,3 +21,8 @@ class FaceEmbeddingCNN(nn.Module):
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return F.normalize(x, p=2, dim=1)
+    
+model = FaceEmbeddingCNN()
+# Count parameters
+total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+print(f"Total trainable parameters: {total_params}")

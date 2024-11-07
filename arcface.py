@@ -16,9 +16,10 @@ writer = SummaryWriter(log_dir="runs/arcface")
 class ArcFaceModel(nn.Module):
     def __init__(self, num_classes, feature_dim=512, margin=0.5, scale=30):
         super(ArcFaceModel, self).__init__()
-        self.backbone = models.resnet50(pretrained=True)
+        self.backbone = models.efficientnet_b5(weights=models.EfficientNet_B5_Weights.DEFAULT)
+        num_features = self.backbone.classifier[1].in_features
         self.backbone.fc = nn.Identity()  # Remove classification head
-        self.fc = nn.Linear(2048, feature_dim)  # Project to embedding space
+        self.fc = nn.Linear(num_features, feature_dim)  # Project to embedding space
         self.margin = margin
         self.scale = scale
         self.arcface_loss = ArcFaceLoss(margin=self.margin, scale=self.scale, num_classes=num_classes, feature_dim=feature_dim)
@@ -73,25 +74,8 @@ def train_arcface(model, train_loader, val_loader, num_epochs, lr=0.001):
             global_step += 1
         
         print(f"Epoch {epoch+1}, Loss: {running_loss/len(train_loader)}")
-        val_accuracy = validate_arcface(model, val_loader)
-        writer.add_scalar('Accuracy/val', val_accuracy, epoch)
         
     writer.close()
-
-def validate_arcface(model, val_loader):
-    model.eval()
-    correct = 0
-    total = 0
-    with torch.no_grad():
-        for images, labels in val_loader:
-            images, labels = images.to(device), labels.to(device)  # Move data to GPU
-            logits, _ = model(images, labels)
-            predictions = torch.argmax(logits, dim=1)
-            correct += (predictions == labels).sum().item()
-            total += labels.size(0)
-    accuracy = correct / total
-    print(f"Validation Accuracy: {accuracy:.4f}")
-    return accuracy
 
 if __name__ == "__main__":
     
@@ -109,7 +93,7 @@ if __name__ == "__main__":
 
     num_classes = len(train_dataset.classes)
     arcface_model = ArcFaceModel(num_classes=num_classes)
-    train_arcface(arcface_model, train_loader, val_loader, num_epochs=25)
+    train_arcface(arcface_model, train_loader, val_loader, num_epochs=20)
 
     # Save the model
     torch.save(arcface_model.state_dict(), 'arcface_model.pth')
