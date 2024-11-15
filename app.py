@@ -7,7 +7,7 @@ import ailia
 import streamlit as st
 from deep_sort_realtime.deepsort_tracker import DeepSort
 from ultralytics import YOLOv10
-from insightface.face_model import recognize_from_video, recognize_from_image
+from insightface.face_model import recognize_from_video, recognize_from_image, post_processing, preprocess, face_align_norm_crop
 from torchvision import transforms
 from PIL import Image
 from collections import defaultdict, deque
@@ -68,6 +68,9 @@ def process_frame(frame, model, tracker, class_names, colors):
         label, confidence, bbox = det.cls, det.conf, det.xyxy[0]
         x1, y1, x2, y2 = map(int, bbox)
         class_id = int(label)
+        
+        if class_id != 0:
+            continue
 
         if confidence < 0.7:
             continue
@@ -131,6 +134,54 @@ def draw_tracks(frame, tracks, detections, class_names, colors, class_counters, 
 
     return frame
 
+def register_face(frame, identity, det_model, anti_spoof):
+    # Detect faces in the frame
+    im_height, im_width, _ = frame.shape
+    _img = preprocess(frame)
+    # print("original image shape: ", _img.shape)
+    # feedforward
+    results = det_model.predict({'img': _img})
+    loc, conf, landms = results
+    bboxes, landmarks = post_processing(im_height, im_width, loc, conf, landms)
+    # print("results: ", results)
+    for i in range(bboxes.shape[0]):
+        bbox = bboxes[i, 0:4]
+        prob = bboxes[i, 4]
+        landmark = landmarks[i].reshape((5, 2))
+
+        _img = face_align_norm_crop(frame, landmark=landmark)
+        # _img = cv2.cvtColor(_img, cv2.COLOR_BGR2RGB)
+        # _img = np.transpose(_img, (2, 0, 1))
+        print("register shape: ", _img.shape)
+        # _img = np.expand_dims(_img, axis=0)
+        # _img = _img.astype(np.float32)
+        
+        # Check if the detected face is real using anti-spoofing
+        # is_real = anti_spoof([_img])[0]
+        # is_real = is_real[0][0] > 0.5
+        # if not is_real:
+        #     st.error("Please use a real face for registration.")
+        #     return
+        
+        # Save the cropped image to the identities folder
+        identities_folder = "./insightface/identities"
+        if not os.path.exists(identities_folder):
+            os.makedirs(identities_folder)
+            
+        if os.path.exists(os.path.join(identities_folder, f"{identity}.PNG")):
+            st.error(f"Face already registered for {identity}.")
+            return
+        
+        # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        image_path = os.path.join(identities_folder, f"{identity}.PNG")
+        cv2.imwrite(image_path, _img)
+        
+        st.success(f"Face registered successfully for {identity}. Image saved at {image_path}.")
+        return
+        
+        
+    st.error("No face detected. Please try again.")
+
 # Streamlit app
 def main():
     st.title("Face Attendance System")
@@ -155,8 +206,7 @@ def main():
     nms_thresh = st.sidebar.slider("NMS Threshold", 0.0, 1.0, 0.4, 0.01)
 
     perform_recognition_button = st.sidebar.button("Face Attendance Check")
-    
-    
+    register_button = st.sidebar.button("Register Face")
 
     # Update global perform_recognition flag
     global perform_recognition
@@ -213,6 +263,23 @@ def main():
         cap = cv2.VideoCapture(video_input)
 
     stframe = st.empty()
+    
+    # Create registration form
+    with st.form(key='registration_form'):
+        identity = st.text_input("Enter your name for registration")
+        submit_button = st.form_submit_button(label='Register Face')
+        
+        if submit_button:
+            if identity:
+                ret, frame = cap.read()
+                if ret:
+                    st.text("Capturing frame for registration...")
+                    register_face(frame, identity, det_model, anti_spoof)
+                    st.success(f"Successfully registered {identity}")
+                else:
+                    st.error("Unable to capture frame. Please check your video source.")
+            else:
+                st.warning("Please enter a name before registering.")
     
     while cap.isOpened():
         ret, frame = cap.read()

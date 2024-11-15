@@ -197,7 +197,7 @@ def predict(img, det_model, rec_model, anti_spoof):
     # initial preprocesses
     im_height, im_width, _ = img.shape
     _img = preprocess(img)
-    print("original image shape: ", _img.shape)
+    # print("original image shape: ", _img.shape)
     # feedforward
     output = det_model.predict({'img': _img})
 
@@ -216,7 +216,7 @@ def predict(img, det_model, rec_model, anti_spoof):
         _img_spoof = cv2.resize(_img, (256, 256))
         
         # check anti-spoofing
-        print("check shape: ", _img_spoof.shape)
+        # print("check shape: ", _img_spoof.shape)
         isSpoof = anti_spoof([_img_spoof])[0]
         isSpoof = isSpoof[0][0]
         label = np.argmax(isSpoof)
@@ -309,13 +309,13 @@ def recognize_from_image(img, det_model, rec_model, anti_spoof):
                 spoof_result = False
         else:
             spoof_result = False
-        print("hight face prob = ", highest_prob_face.prob)
+        # print("hight face prob = ", highest_prob_face.prob)
         if highest_prob_face.prob > 0.7:
             # Get the name for this face
             if highest_prob_face.category is not None:
                 highest_prob_name = ident_names[highest_prob_face.category]
                 
-                print("category: ", highest_prob_face.category)
+                # print("category: ", highest_prob_face.category)
             else:
                 highest_prob_name = "Unknown"
         else:
@@ -408,7 +408,7 @@ def main(image_path):
 
     img = cv2.imread(image_path)
     result = recognize_from_image(img, det_model, rec_model)
-    print("result: ", result)
+    # print("result: ", result)
     
     logger.info('Script finished successfully.')
 
