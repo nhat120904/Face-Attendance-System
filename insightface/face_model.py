@@ -213,7 +213,8 @@ def predict(img, det_model, rec_model, anti_spoof):
 
         _img = face_align_norm_crop(img, landmark=landmark)
         _img = cv2.cvtColor(_img, cv2.COLOR_BGR2RGB)
-        _img_spoof = cv2.resize(_img, (256, 256))
+        _img_spoof = cv2.resize(_img, (360, 360))
+        cv2.imwrite('aligned_face_{}.png'.format(i), _img_spoof)
         
         # check anti-spoofing
         # print("check shape: ", _img_spoof.shape)

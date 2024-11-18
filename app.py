@@ -80,9 +80,32 @@ def process_frame(frame, model, tracker, class_names, colors):
     tracks = tracker.update_tracks(detections, frame=frame)
     return tracks, detections
 
+# def is_face_in_circle(face_bbox, circle_center, circle_radius):
+#     """Check if face bounding box intersects with circle"""
+#     x1, y1, x2, y2 = face_bbox
+#     face_center_x = (x1 + x2) // 2
+#     face_center_y = (y1 + y2) // 2
+    
+#     # Calculate distance between face center and circle center
+#     distance = np.sqrt((face_center_x - circle_center[0])**2 + 
+#                       (face_center_y - circle_center[1])**2)
+#     return distance < circle_radius
+
+
 # Draw bounding boxes and perform face recognition
-def draw_tracks(frame, tracks, detections, class_names, colors, class_counters, feature_database, identity_database, det_model, rec_model, anti_spoof):
+def draw_tracks(frame, tracks, detections, class_names, colors, class_counters, feature_database, identity_database, det_model, rec_model, anti_spoof, spoof_database):
     global perform_recognition
+    
+    # Get frame dimensions
+    height, width = frame.shape[:2]
+    
+    # Define circle parameters
+    # circle_center = (width // 2, height // 2)
+    # circle_radius = min(width, height) // 4
+    
+    # Draw recognition circle
+    # cv2.circle(frame, circle_center, circle_radius, (0, 0, 0), 2)
+    
     for track in tracks:
         if not track.is_confirmed():
             continue
@@ -117,17 +140,23 @@ def draw_tracks(frame, tracks, detections, class_names, colors, class_counters, 
 
         # Perform face recognition if needed
         if perform_recognition and identity == "Unknown":
+            # Only process faces inside circle
+            # if is_face_in_circle((x1, y1, x2, y2), circle_center, circle_radius):
             crop_img = frame[y1:y2, x1:x2]
             if crop_img.size > 0:
                 identity, spoof = recognize_from_image(crop_img, det_model, rec_model, anti_spoof)
+                
+                print("Identity: ", identity)
+                print("Spoof: ", spoof)
                 identity_database[class_specific_id] = identity
+                spoof_database[class_specific_id] = not spoof 
                 
             perform_recognition = False
 
         feature_database[class_specific_id].append(feature)
-
-        # Draw bounding box and identity
-        text = f"Hello {identity} REAL"
+        # print("check :", spoof_database.get(class_specific_id, True))
+        spoof_status = "FAKE" if spoof_database.get(class_specific_id, False) else "REAL"
+        text = f"{identity_database[class_specific_id]} {spoof_status}"
         color = tuple(map(int, colors[class_id]))
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         cv2.putText(frame, text, (x1 + 5, y1 - 8), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
@@ -150,6 +179,7 @@ def register_face(frame, identity, det_model, anti_spoof):
         landmark = landmarks[i].reshape((5, 2))
 
         _img = face_align_norm_crop(frame, landmark=landmark)
+        _img_spoof = cv2.resize(_img, (360, 360))
         # _img = cv2.cvtColor(_img, cv2.COLOR_BGR2RGB)
         # _img = np.transpose(_img, (2, 0, 1))
         print("register shape: ", _img.shape)
@@ -157,11 +187,11 @@ def register_face(frame, identity, det_model, anti_spoof):
         # _img = _img.astype(np.float32)
         
         # Check if the detected face is real using anti-spoofing
-        # is_real = anti_spoof([_img])[0]
-        # is_real = is_real[0][0] > 0.5
-        # if not is_real:
-        #     st.error("Please use a real face for registration.")
-        #     return
+        is_real = anti_spoof([_img_spoof])[0]
+        is_real = is_real[0][0] > 0.5
+        if not is_real:
+            st.error("Please use a real face for registration.")
+            return
         
         # Save the cropped image to the identities folder
         identities_folder = "./insightface/identities"
@@ -185,13 +215,10 @@ def register_face(frame, identity, det_model, anti_spoof):
 # Streamlit app
 def main():
     st.title("Face Attendance System")
-
-    # Select video source
-    video_source = st.sidebar.selectbox("Select Video Source", options=["Webcam (0)", "Video File"])
-    if video_source == "Webcam (0)":
-        video_input = 0
-    else:
-        video_input = st.sidebar.file_uploader("Upload a Video File", type=["mp4", "avi", "mkv"])
+    st.markdown("This is a real-time face recognition system that can be used for attendance tracking.")
+    tracker = DeepSort(max_age=10, n_init=3, embedder="torchreid", embedder_model_name="osnet_x1_0")
+    # Webcam input
+    video_input = 0
 
     option = st.sidebar.selectbox(
         "Choose Face Recognititon model",
@@ -201,12 +228,11 @@ def main():
     st.sidebar.write("You selected:", option)
 
     # Detection and identity thresholds
-    det_thresh = st.sidebar.slider("Detection Threshold", 0.0, 1.0, 0.02, 0.01)
-    ident_thresh = st.sidebar.slider("Identity Threshold", 0.0, 1.0, 0.25572845, 0.01)
-    nms_thresh = st.sidebar.slider("NMS Threshold", 0.0, 1.0, 0.4, 0.01)
+    # det_thresh = st.sidebar.slider("Detection Threshold", 0.0, 1.0, 0.02, 0.01)
+    # ident_thresh = st.sidebar.slider("Identity Threshold", 0.0, 1.0, 0.25572845, 0.01)
+    # nms_thresh = st.sidebar.slider("NMS Threshold", 0.0, 1.0, 0.4, 0.01)
 
-    perform_recognition_button = st.sidebar.button("Face Attendance Check")
-    register_button = st.sidebar.button("Register Face")
+    perform_recognition_button = st.button("Face Attendance Check")
 
     # Update global perform_recognition flag
     global perform_recognition
@@ -216,7 +242,7 @@ def main():
     model = initialize_model()
     class_names = load_class_names()
     
-    tracker = DeepSort(max_age=10, n_init=3, embedder="torchreid", embedder_model_name="osnet_x1_0")
+    
 
     # Set up colors
     np.random.seed(42)
@@ -226,6 +252,7 @@ def main():
     class_counters = defaultdict(int)
     feature_database = {}
     identity_database = {}
+    spoof_database = {}
 
     WEIGHT_DET_PATH = './insightface/retinaface_resnet.onnx'
     MODEL_DET_PATH = './insightface/retinaface_resnet.onnx.prototxt'
@@ -251,7 +278,7 @@ def main():
     WEIGHT_REC_PATH, MODEL_REC_PATH = rec_model['resnet100']
 
     # Loading models
-    st.text("Initializing models, please wait...")
+    # st.text("Initializing models, please wait...")
     det_model = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=ailia.get_gpu_environment_id())
     rec_model = ailia.Net(MODEL_REC_PATH, WEIGHT_REC_PATH, env_id=ailia.get_gpu_environment_id())
     anti_spoof = AntiSpoof('./weights/AntiSpoofing_print-replay_1.5_128.onnx')
@@ -280,6 +307,30 @@ def main():
                     st.error("Unable to capture frame. Please check your video source.")
             else:
                 st.warning("Please enter a name before registering.")
+                
+    # Add file upload section in sidebar
+    st.sidebar.markdown("### Face Registration")
+    uploaded_file = st.sidebar.file_uploader("Upload your face image", type=['jpg', 'jpeg', 'png'])
+    identity = st.sidebar.text_input("Enter your name")
+    register_button = st.sidebar.button("Register Face")
+
+    if register_button:
+        if uploaded_file is not None and identity:
+            # Convert uploaded file to opencv image
+            file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+            frame = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+            
+            try:
+                # Register face using the uploaded image
+                register_face(frame, identity, det_model, anti_spoof)
+                st.sidebar.success(f"Successfully registered {identity}")
+            except Exception as e:
+                st.sidebar.error(f"Error registering face: {str(e)}")
+        else:
+            if not uploaded_file:
+                st.sidebar.warning("Please upload an image first")
+            if not identity:
+                st.sidebar.warning("Please enter your name")
     
     while cap.isOpened():
         ret, frame = cap.read()
@@ -288,7 +339,7 @@ def main():
             break
 
         tracks, detections = process_frame(frame, model, tracker, class_names, colors)
-        frame = draw_tracks(frame, tracks, detections, class_names, colors, class_counters, feature_database, identity_database, det_model, rec_model, anti_spoof)
+        frame = draw_tracks(frame, tracks, detections, class_names, colors, class_counters, feature_database, identity_database, det_model, rec_model, anti_spoof, spoof_database)
         # Convert to RGB for display in Streamlit
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         stframe.image(frame, channels="RGB")
