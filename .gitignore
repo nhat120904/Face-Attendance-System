@@ -4,6 +4,11 @@ dataset/
 # Ignore zip files
 *.zip
 
+# Ignore log files
+*.log
+
+.idea/
+
 # Ignore Python cache files and directories
 __pycache__/
 *.pyc

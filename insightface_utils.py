@@ -32,7 +32,7 @@ src5 = np.array([[54.796, 49.990], [60.771, 50.115], [76.673, 69.007],
                 dtype=np.float32)
 
 src = np.array([src1, src2, src3, src4, src5])
-src_map = {112: src, 224: src * 2}
+src_map = {112: src, 224: src * 2, 360: src * 3}
 
 arcface_src = np.array(
     [[38.2946, 51.6963], [73.5318, 51.5014], [56.0252, 71.7366],
@@ -151,25 +151,28 @@ def nms(dets, thresh):
 
 
 # lmk is prediction; src is template
-def estimate_norm(lmk, image_size=112, mode='arcface'):
+def estimate_norm(lmk, image_size=112, mode='arcface', scale=1.0):
     assert lmk.shape == (5, 2)
     tform = trans.SimilarityTransform()
     lmk_tran = np.insert(lmk, 2, values=np.ones(5), axis=1)
     min_M = []
     min_index = []
     min_error = float('inf')
+    
     if mode == 'arcface':
         assert image_size == 112
-        src = arcface_src
+        scaled_src = arcface_src * scale  # Scale the template
+        src = scaled_src
     else:
-        src = src_map[image_size]
+        scaled_src = src_map[image_size] * scale  # Scale the template
+        src = scaled_src
+
     for i in np.arange(src.shape[0]):
         tform.estimate(lmk, src[i])
         M = tform.params[0:2, :]
         results = np.dot(M, lmk_tran.T)
         results = results.T
         error = np.sum(np.sqrt(np.sum((results - src[i]) ** 2, axis=1)))
-        #         print(error)
         if error < min_error:
             min_error = error
             min_M = M
@@ -177,10 +180,12 @@ def estimate_norm(lmk, image_size=112, mode='arcface'):
     return min_M, min_index
 
 
-def face_align_norm_crop(img, landmark, image_size=112, mode='arcface'):
-    M, pose_index = estimate_norm(landmark, image_size, mode)
+def face_align_norm_crop(img, landmark, image_size=112, mode='arcface', scale=1.0):
+    # Pass the scaling factor to estimate_norm
+    M, pose_index = estimate_norm(landmark, image_size, mode, scale=scale)
     warped = cv2.warpAffine(img, M, (image_size, image_size), borderValue=0.0)
     return warped
+
 
 
 def draw_detection(img, detections, names):
@@ -194,6 +199,17 @@ def draw_detection(img, detections, names):
         xy = (int(w * face.x), int(h * face.y))
         xy2 = (int(w * (face.x + face.w)), int(h * (face.y + face.h)))
 
+        spoof = face.label
+        spoof_score = face.spoof
+        # print("spoof: ", spoof, " Score: ", spoof_score)
+        if spoof == 0:
+            if spoof_score > 0.1:
+                spoof_result = True
+            else:
+                spoof_result = False
+        else:
+            spoof_result = False
+            
         cv2.rectangle(img, xy, xy2, color=color, thickness=2)
         cv2.putText(
             img,
@@ -205,12 +221,20 @@ def draw_detection(img, detections, names):
             thickness=2,
             fontFace=cv2.FONT_HERSHEY_COMPLEX,
             fontScale=0.8)
-        # cv2.putText(
-        #     img,
-        #     '%s: %d' % ('M' if face.gender else 'F', face.age),
-        #     (xy[0], xy[1] + 44),
-        #     color=color,
-        #     thickness=2,
-        #     fontFace=cv2.FONT_HERSHEY_COMPLEX,
-        #     fontScale=0.8)
+        cv2.putText(
+            img,
+            '%s: %d' % ('M' if face.gender else 'F', face.age),
+            (xy[0], xy[1] + 44),
+            color=color,
+            thickness=2,
+            fontFace=cv2.FONT_HERSHEY_COMPLEX,
+            fontScale=0.8)
+        cv2.putText(
+            img,
+            'Real' if spoof_result else 'Fake',
+            (xy[0], xy[1] + 66),
+            color=color,
+            thickness=2,
+            fontFace=cv2.FONT_HERSHEY_COMPLEX,
+            fontScale=0.8)
     return img
