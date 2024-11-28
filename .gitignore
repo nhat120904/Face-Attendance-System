@@ -36,3 +36,5 @@ runs/
 *.jpeg
 *.png
 *.gif
+
+!demo.png

@@ -210,6 +210,7 @@ def draw_detection(img, detections, names):
         else:
             spoof_result = False
             
+        # cv2.rectangle(img, (50, 50), (w - 50, h - 50), color=(255, 255, 255), thickness=2)
         cv2.rectangle(img, xy, xy2, color=color, thickness=2)
         cv2.putText(
             img,

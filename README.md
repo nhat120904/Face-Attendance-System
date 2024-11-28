@@ -1,42 +1,28 @@
-# InsightFace
+# Face Recognition Attendance System with Liveness Detection
 
-## Input
 
-![Input](demo.jpg)
+## Demo
 
-(Image from https://github.com/deepinsight/insightface/blob/master/sample-images/t1.jpg)
-
-## Output
-
-![Output](output.png)
+![Input](demo.png)
 
 ## Note
 
-The code of InsightFace is released under the MIT License. There is no limitation for both acadmic and commercial usage.
+The code of this project is released under the MIT License. There is no limitation for both acadmic and commercial usage.
 
 The training data containing the annotation (and the models trained with these data) are available for non-commercial research purposes only.
 
 ## Usage
-Automatically downloads the onnx and prototxt files on the first run.
+Automatically downloads the onnx and prototxt files on the first run and put it to weights foler.
 It is necessary to be connected to the Internet while downloading.
 
-For the sample image,
+1. Install dependencies
 ``` bash
-$ python3 insightface.py
+$ pip install -r requirements.txt
 ```
 
-The sample code reads the face images under the identities directory and uses the file name as the label.
-
-If you want to specify the input image, put the image path after the `--input` option.  
-You can use `--savepath` option to change the name of the output file to save.
+2. Running the application
 ```bash
-$ python3 insightface.py --input IMAGE_PATH --savepath SAVE_IMAGE_PATH
-```
-
-By adding the `--video` option, you can input the video.   
-If you pass `0` as an argument to VIDEO_PATH, you can use the webcam input instead of the video file.
-```bash
-$ python3 insightface.py --video VIDEO_PATH
+$ streamlit run face_app.py
 ```
 
 ## Reference

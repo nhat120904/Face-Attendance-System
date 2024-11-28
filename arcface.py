@@ -22,7 +22,10 @@ class ArcFaceModel(nn.Module):
         self.fc = nn.Linear(num_features, feature_dim)  # Project to embedding space
         self.margin = margin
         self.scale = scale
-        self.arcface_loss = ArcFaceLoss(margin=self.margin, scale=self.scale, num_classes=num_classes, feature_dim=feature_dim)
+        self.arcface_loss = ArcFaceLoss(margin=self.margin, 
+                                        scale=self.scale, 
+                                        num_classes=num_classes, 
+                                        feature_dim=feature_dim)
 
     def forward(self, images, labels=None):
         embeddings = self.backbone(images)

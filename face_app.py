@@ -61,7 +61,7 @@ Face = namedtuple('Face', [
 # ======================
 parser = get_base_parser('InsightFace model', IMAGE_PATH, SAVE_IMAGE_PATH)
 parser.add_argument(
-    '--det_thresh', type=float, default=0.04,
+    '--det_thresh', type=float, default=0.95,
     help='det_thresh'
 )
 parser.add_argument(
@@ -81,6 +81,7 @@ parser.add_argument(
     choices=('resnet100', 'resnet50', 'resnet34', 'mobileface'),
     help='recognition model'
 )
+
 args = update_parser(parser)
 
 
@@ -228,6 +229,12 @@ def predict(img, det_model, rec_model, ga_model, anti_spoof):
 
         _img = face_align_norm_crop(img, landmark=landmark)
         _img = cv2.cvtColor(_img, cv2.COLOR_BGR2RGB)
+        
+        # crop_height, crop_width, _ = _img.shape
+        # min_size_threshold = 200  # Minimum size in pixels for width and height
+        # if crop_height < min_size_threshold or crop_width < min_size_threshold:
+        #     st.warning("Face detected is too small. Please move closer to the camera.")
+            # return
          
         _img_spoof = increased_crop(img, bbox, bbox_inc=1.5)
         _img_spoof = cv2.cvtColor(_img_spoof, cv2.COLOR_BGR2RGB)
@@ -326,16 +333,13 @@ def register_face(frame, identity, det_model, anti_spoof):
 
         _img_spoof = increased_crop(frame, bbox, bbox_inc=1.5)
         _img_spoof = cv2.cvtColor(_img_spoof, cv2.COLOR_BGR2RGB)
-        _img_spoof = cv2.resize(_img, (360, 360))
-        # _img = cv2.cvtColor(_img, cv2.COLOR_BGR2RGB)
-        # _img = np.transpose(_img, (2, 0, 1))
-        print("register shape: ", _img.shape)
-        # _img = np.expand_dims(_img, axis=0)
-        # _img = _img.astype(np.float32)
+        _img_spoof = cv2.resize(_img_spoof, (360, 360))
+        cv2.imwrite(f"spoof_check.PNG", _img_spoof)
+        # print("register shape: ", _img.shape)
         
         # Check if the detected face is real using anti-spoofing
         is_real = anti_spoof([_img_spoof])[0]
-        print("check real: ", is_real[0][0])
+        # print("check real: ", is_real[0][0])
         is_real = is_real[0][0] > 0.1
         if not is_real:
             st.error("Please use a real face for registration.")
@@ -383,10 +387,10 @@ def load_models(WEIGHT_REC_PATH, MODEL_REC_PATH):
         raise
 
 def main():
-    st.title("The Strongest Face Attendace System")
+    st.title("Ultra Face Attendace System")
     st.write("This is a face recognition system that uses the InsightFace model for face detection and recognition.")
     st.write("The system uses the RetinaFace model for face detection and the ArcFace model for face recognition.")
-    # st.write("Who can fool the system is gay")
+    # st.write("Make sure to put your face close to the camera and no light shining directly into the camera, otherwise the system might not behave accurately, ")
     
     # Sidebar for model selection and configuration
     st.sidebar.header("Model Configuration")
@@ -401,15 +405,6 @@ def main():
     selected_rec_model = st.sidebar.selectbox("Recognition Model", list(rec_model_options.keys()))
     WEIGHT_REC_PATH, MODEL_REC_PATH = rec_model_options[selected_rec_model]
 
-    # Detection and identity thresholds
-    det_thresh = st.sidebar.slider("Detection Threshold", 0.0, 1.0, 0.02, 0.01)
-    ident_thresh = st.sidebar.slider("Identity Threshold", 0.0, 1.0, 0.25572845, 0.01)
-    nms_thresh = st.sidebar.slider("NMS Threshold", 0.0, 1.0, 0.4, 0.01)
-    
-    # Initialize models with selected environment ID
-    # det_model = ailia.Net(MODEL_DET_PATH, WEIGHT_DET_PATH, env_id=2)
-    # rec_model = ailia.Net(MODEL_REC_PATH, WEIGHT_REC_PATH, env_id=2)
-    # ga_model = ailia.Net(MODEL_GA_PATH, WEIGHT_GA_PATH, env_id=2)
     # Load models
     det_model, rec_model, ga_model = load_models(WEIGHT_REC_PATH, MODEL_REC_PATH)
     anti_spoof = AntiSpoof(WEIGHT_ANTISPOOF_PATH)
@@ -463,6 +458,6 @@ def main():
     # Video stream from webcam
     st.write("**Live Video Feed**")
     recognize_from_video(0, det_model, rec_model, ga_model, anti_spoof)
-    
+
 if __name__ == '__main__':
     main()
